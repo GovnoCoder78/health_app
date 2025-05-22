@@ -1,0 +1,2 @@
+C:/Users/pavel/flutter_projects/flutter_steps_tracker/android/app/.cxx/RelWithDebInfo/314w416i/x86/CMakeFiles/edit_cache.dir
+C:/Users/pavel/flutter_projects/flutter_steps_tracker/android/app/.cxx/RelWithDebInfo/314w416i/x86/CMakeFiles/rebuild_cache.dir

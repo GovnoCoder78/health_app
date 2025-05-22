@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "652024654258",
+    "project_id": "steps-a9614",
+    "storage_bucket": "steps-a9614.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:652024654258:android:94dc48f638b03ebea65cab",
+        "android_client_info": {
+          "package_name": "com.example.flutter_steps_tracker"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBCde_GOx_dxEIBQI6MR8i6ga9FIasA2f0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

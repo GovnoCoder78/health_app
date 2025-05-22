@@ -1,0 +1,1 @@
+C:\Users\pavel\flutter_projects\flutter_steps_tracker\build\app\intermediates\cxx\RelWithDebInfo\314w416i\obj\armeabi-v7a
