@@ -21,7 +21,7 @@ class MyDatabase with ChangeNotifier {
   }
 
   Future<void> initDatabase() async {
-    final userData = await _firestore.collection("users").doc(uid).get();
+    final userData = await _firestore.collection("user").doc(uid).get();
     final mydoc = userData.data();
     if (mydoc?["points"] != null) {
       _points = mydoc!["points"];
@@ -35,7 +35,7 @@ class MyDatabase with ChangeNotifier {
 
   Future<void> deleteAccount() async{
     try{
-      await _firestore.collection('users').doc(uid).delete();
+      await _firestore.collection('user').doc(uid).delete();
     }
     catch (e){
       print('error deleting doc: $e');
@@ -45,7 +45,7 @@ class MyDatabase with ChangeNotifier {
   Future<void> updateSteps(int newSteps) async{
     try{
       //int totalSteps = currentSteps + newSteps;
-      await _firestore.collection('users').doc(uid).update({'steps': newSteps});
+      await _firestore.collection('user').doc(uid).update({'steps': newSteps});
     } catch (e){
       print('Error while updating steps: $e');
     }
@@ -54,7 +54,7 @@ class MyDatabase with ChangeNotifier {
   Future<int> getSteps() async{
     try {
       DocumentSnapshot doc = await _firestore
-          .collection('users')
+          .collection('user')
           .doc(uid)
           .get();
       Map <String, dynamic> data = doc.data() as Map<String, dynamic>;
@@ -69,7 +69,7 @@ class MyDatabase with ChangeNotifier {
 
   Future<void> updatePoints() async {
     _points = points + 10;
-    _firestore.collection("users").doc(uid).update({"points": _points});
+    _firestore.collection("user").doc(uid).update({"points": _points});
     notifyListeners();
   }
 
@@ -81,8 +81,8 @@ class MyDatabase with ChangeNotifier {
         itemName: shop.name,
         itemCost: shop.cost);
     _allBoughtItems.add(buyLog);
-    _firestore.collection("users").doc(uid).update({"points": points});
-    _firestore.collection("users").doc(uid).update({
+    _firestore.collection("user").doc(uid).update({"points": points});
+    _firestore.collection("user").doc(uid).update({
       "buyLog": [
         ..._allBoughtItems.map((e) => e.toMap()).toList(),
       ]

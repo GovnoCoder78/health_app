@@ -5,6 +5,7 @@ import 'package:flutter_steps_tracker/services/my_database.dart';
 import 'package:flutter_steps_tracker/utils/colors.dart';
 import 'package:flutter_steps_tracker/utils/show_snack_bar.dart';
 import 'package:provider/provider.dart';
+import 'dart:async';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -20,17 +21,15 @@ class StepsCounterScreen extends StatefulWidget {
   State<StepsCounterScreen> createState() => _StepsCounterScreenState();
 }
 
-class _StepsCounterScreenState extends State<StepsCounterScreen> {
+class _StepsCounterScreenState extends State<StepsCounterScreen>
+with WidgetsBindingObserver{
   double x = 0.0;
-
   double y = 0.0;
-
   double z = 0.0;
-
   int steps = 1;
-
   double distance = 0.0;
-
+  Timer? _saveTimer;
+  bool _hasUnsavedSteps = false;
   double previousDistacne = 0.0;
 
   double getValue(double x, double y, double z) {
@@ -42,13 +41,19 @@ class _StepsCounterScreenState extends State<StepsCounterScreen> {
   }
 
   Future<void> _initializeSteps() async{
-    steps = await Provider.of<MyDatabase>(context, listen: false).getSteps();
+   final  savedSteps = await Provider.of<MyDatabase>(context, listen: false).getSteps();
+   await _initializePreviousDistance();
+   setState(() {
+     steps = savedSteps;
+   });
   }
 
   @override
   void initState(){
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initializeSteps();
+    _startPeriodicSave();
   }
 
   void getPoints() {
@@ -63,11 +68,27 @@ class _StepsCounterScreenState extends State<StepsCounterScreen> {
     pref.setDouble("preValue", distance);
   }
 
+  Future<void> _initializePreviousDistance() async {
+    SharedPreferences pref = await SharedPreferences.getInstance();
+    previousDistacne = pref.getDouble("preValue") ?? 0.0;
+  }
+
   void getPreviousValue() async {
     SharedPreferences pref = await SharedPreferences.getInstance();
     setState(() {
       previousDistacne = pref.getDouble("preValue") ?? 0.0;
     });
+  }
+
+  void _startPeriodicSave() {
+    // Сохраняем каждые 30 секунд
+    _saveTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+        _saveStepsToDatabase();
+    });
+  }
+
+  void _saveStepsToDatabase() {
+    Provider.of<MyDatabase>(context, listen: false).updateSteps(steps);
   }
 
   Widget stepsBuilder(
@@ -81,8 +102,7 @@ class _StepsCounterScreenState extends State<StepsCounterScreen> {
       if (distance > 7) {
         steps++;
       }
-      if (steps % 100 == 0) {
-        steps++;
+      if (steps % 10 == 0) {
         getPoints();
         Provider.of<MyDatabase>(context, listen: false).updateSteps(steps);
       }
@@ -92,6 +112,24 @@ class _StepsCounterScreenState extends State<StepsCounterScreen> {
       );
     }
     return const Text("No data");
+  }
+
+  @override
+  void dispose(){
+    WidgetsBinding.instance.removeObserver(this); // Добавьте это
+    _saveTimer?.cancel();
+    _saveStepsToDatabase();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached ||
+        state == AppLifecycleState.inactive) {
+      // Сохраняем при сворачивании приложения
+      _saveStepsToDatabase();
+    }
   }
 
   @override

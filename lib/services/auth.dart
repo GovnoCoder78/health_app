@@ -39,7 +39,7 @@ class Auth implements AuthBase {
   Future<String> currentUserName() async {
     final user = FirebaseAuth.instance.currentUser!;
     final userData = await FirebaseFirestore.instance
-        .collection("users")
+        .collection("user")
         .doc(user.uid)
         .get();
     final mydoc = userData.data();
@@ -52,15 +52,15 @@ class Auth implements AuthBase {
     final FirebaseFirestore firestore = FirebaseFirestore.instance;
     final authResult = await auth.signInAnonymously().then((value) async {
       await firestore
-          .collection("users")
+          .collection("user")
           .doc(value.user!.uid)
           .set({"name": name});
       await firestore
-          .collection("users")
+          .collection("user")
           .doc(value.user!.uid)
           .update({"points": 0});
       await firestore
-          .collection("users")
+          .collection("user")
           .doc(value.user!.uid)
           .update({"steps": 0});
       return value;
