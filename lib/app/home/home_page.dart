@@ -3,6 +3,7 @@ import 'package:flutter_steps_tracker/app/home/pedometer/steps_counter_screen.da
 import 'package:flutter_steps_tracker/app/home/profile/profile_screen.dart';
 import 'package:flutter_steps_tracker/app/home/shop/shop_screen.dart';
 import 'package:flutter_steps_tracker/utils/colors.dart';
+import 'package:flutter_steps_tracker/app/home/devices/scan_screen.dart';
 import 'package:flutter_steps_tracker/app/home/devices/devices_screen.dart';
 
 class HomePage extends StatefulWidget {
@@ -27,10 +28,10 @@ class _HomePageState extends State<HomePage> {
       ShopScreen(
         menuScreenContext: widget.menuScreenContext,
       ),
-      ProfileScreen(
+      DevicesScreen(
         menuScreenContext: widget.menuScreenContext,
       ),
-      DevicesScreen(
+      ProfileScreen(
         menuScreenContext: widget.menuScreenContext,
       ),
 

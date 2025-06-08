@@ -33,7 +33,7 @@ class _DevicesListState extends State<DevicesList> {
   // Пример списка устройств
   final List<Device> _devices = [
     const Device(
-      name: 'Apple Watch Series 8',
+      name: 'CMF Watch Pro 2-059A',
       type: DeviceType.watch,
       isConnected: true,
       batteryLevel: '85%',

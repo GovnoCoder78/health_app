@@ -16,7 +16,6 @@ class PermissionControllerScreen extends StatefulWidget {
 
 class _PermissionControllerScreenState extends State<PermissionControllerScreen>
     with WidgetsBindingObserver {
-  late final PermissionModel _model;
   bool _detectPermission = false;
   bool _isInit = true;
   bool _isLoading = false;
@@ -25,8 +24,6 @@ class _PermissionControllerScreenState extends State<PermissionControllerScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-
-    _model = PermissionModel();
   }
 
   @override
@@ -35,11 +32,21 @@ class _PermissionControllerScreenState extends State<PermissionControllerScreen>
       setState(() {
         _isLoading = true;
       });
+
+      // Получаем провайдеры из контекста
+      final database = Provider.of<MyDatabase>(context, listen: false);
+      final permissionModel = Provider.of<PermissionModel>(context, listen: false);
+
       Future.wait([
-        Provider.of<MyDatabase>(context, listen: false).initDatabase(),
-        Provider.of<PermissionModel>(context, listen: false).initPermission(),
-        _model.initPermission(),
+        database.initDatabase(),
+        permissionModel.initPermission(),
       ]).then((_) {
+        setState(() {
+          _isLoading = false;
+        });
+      }).catchError((error) {
+        // Обработка ошибок
+        print('Error during initialization: $error');
         setState(() {
           _isLoading = false;
         });
@@ -58,19 +65,21 @@ class _PermissionControllerScreenState extends State<PermissionControllerScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) async {
     final myPermissionModel =
-        Provider.of<PermissionModel>(context, listen: false);
+    Provider.of<PermissionModel>(context, listen: false);
+
     if (state == AppLifecycleState.resumed &&
         myPermissionModel.isBackFromSettings) {
       myPermissionModel.checkIfPermissionIsGranted(false);
       myPermissionModel.isBackFromSettingsSetter(false);
     }
+
     if (state == AppLifecycleState.resumed &&
         _detectPermission &&
-        (_model.permissionSection == PermissionSection.noActivityPermission)) {
+        (myPermissionModel.permissionSection == PermissionSection.noActivityPermission)) {
       _detectPermission = false;
-      _model.requestActivityPermission();
+      myPermissionModel.requestActivityPermission();
     } else if (state == AppLifecycleState.paused &&
-        _model.permissionSection == PermissionSection.noActivityPermission) {
+        myPermissionModel.permissionSection == PermissionSection.noActivityPermission) {
       _detectPermission = true;
     }
   }
@@ -79,36 +88,41 @@ class _PermissionControllerScreenState extends State<PermissionControllerScreen>
   Widget build(BuildContext context) {
     return _isLoading
         ? const LoadingScreen()
-        : Consumer<PermissionModel>(
-            builder: (context, model, child) {
-              Widget widget;
-              switch (model.permissionSection) {
-                case PermissionSection.noActivityPermission:
-                  widget = ActivityPermission(
-                      isPermanent: false, onPressed: _checkPermissions);
-                  break;
-                case PermissionSection.activitypermissionAllowed:
-                  widget = HomePage(menuScreenContext: context);
-                  break;
-                case PermissionSection.notInitialized:
-                  widget = const Text("Not Initialized");
-                  break;
-                case PermissionSection.noActivityPermissionPermenant:
-                  widget = ActivityPermission(
-                      isPermanent: true, onPressed: _checkPermissions);
-                  break;
-              }
+        : Consumer2<MyDatabase, PermissionModel>(
+      builder: (context, database, permissionModel, child) {
+        // Добавляем проверку на null
+        if (database == null || permissionModel == null) {
+          return const LoadingScreen();
+        }
 
-              return Scaffold(
-                body: widget,
-              );
-            },
-          );
+        Widget widget;
+        switch (permissionModel.permissionSection) {
+          case PermissionSection.noActivityPermission:
+            widget = ActivityPermission(
+                isPermanent: false, onPressed: _checkPermissions);
+            break;
+          case PermissionSection.activitypermissionAllowed:
+            widget = HomePage(menuScreenContext: context);
+            break;
+          case PermissionSection.notInitialized:
+            widget = const Text("Not Initialized");
+            break;
+          case PermissionSection.noActivityPermissionPermenant:
+            widget = ActivityPermission(
+                isPermanent: true, onPressed: _checkPermissions);
+            break;
+        }
+
+        return Scaffold(
+          body: widget,
+        );
+      },
+    );
   }
 
   Future<void> _checkPermissions() async {
-    await Provider.of<PermissionModel>(context, listen: false)
-        .requestActivityPermission();
-    await _model.checkIfPermissionIsGranted(false);
+    final permissionModel = Provider.of<PermissionModel>(context, listen: false);
+    await permissionModel.requestActivityPermission();
+    await permissionModel.checkIfPermissionIsGranted(false);
   }
 }

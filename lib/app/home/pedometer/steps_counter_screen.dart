@@ -58,7 +58,7 @@ with WidgetsBindingObserver{
 
   void getPoints() {
     WidgetsBinding.instance.addPostFrameCallback((timeStamp) {
-      showSnackBar(context, "Congrats you got 10 points");
+      showSnackBar(context, "Поздравляем, вы получили 10 очков!");
       Provider.of<MyDatabase>(context, listen: false).updatePoints();
     });
   }
@@ -102,7 +102,7 @@ with WidgetsBindingObserver{
       if (distance > 7) {
         steps++;
       }
-      if (steps % 10 == 0) {
+      if (steps % 10 == 0 && steps > 10) {
         getPoints();
         Provider.of<MyDatabase>(context, listen: false).updateSteps(steps);
       }
@@ -116,7 +116,7 @@ with WidgetsBindingObserver{
 
   @override
   void dispose(){
-    WidgetsBinding.instance.removeObserver(this); // Добавьте это
+    WidgetsBinding.instance.removeObserver(this);
     _saveTimer?.cancel();
     _saveStepsToDatabase();
     super.dispose();
