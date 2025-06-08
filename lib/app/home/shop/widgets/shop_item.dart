@@ -56,28 +56,34 @@ class ShopItem extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: <Widget>[
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      shop.name,
-                      style: const TextStyle(
-                          fontSize: 20,
-                          color: activeColor,
-                          fontWeight: FontWeight.w500),
-                    ),
-                    Text(
-                      "Цена: ${shop.cost}",
-                      style: const TextStyle(color: darkGrey),
-                    )
-                  ],
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        shop.name,
+                        style: const TextStyle(
+                            fontSize: 20,
+                            color: activeColor,
+                            fontWeight: FontWeight.w500),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                      Text(
+                        "Цена: ${shop.cost}",
+                        style: const TextStyle(color: darkGrey),
+                      )
+                    ],
+                  ),
                 ),
+                const SizedBox(width: 10),
                 InkWell(
                   onTap: () {
                     onSubmit(context);
                   },
                   child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: const <Widget>[
                       Text(
                         "Купить",
