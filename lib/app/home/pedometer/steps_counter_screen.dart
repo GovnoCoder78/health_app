@@ -26,11 +26,23 @@ with WidgetsBindingObserver{
   double x = 0.0;
   double y = 0.0;
   double z = 0.0;
-  int steps = 1;
+  int steps = 0;
   double distance = 0.0;
   Timer? _saveTimer;
   bool _hasUnsavedSteps = false;
   double previousDistacne = 0.0;
+  late MyDatabase _database;
+  bool _isInitialized = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _database = Provider.of<MyDatabase>(context, listen: false);
+    if (!_isInitialized) {
+      _initializeSteps();
+      _isInitialized = true;
+    }
+  }
 
   double getValue(double x, double y, double z) {
     double magnitude = sqrt(x * x + y * y + z * z);
@@ -40,26 +52,25 @@ with WidgetsBindingObserver{
     return modDistance;
   }
 
-  Future<void> _initializeSteps() async{
-   final  savedSteps = await Provider.of<MyDatabase>(context, listen: false).getSteps();
-   await _initializePreviousDistance();
-   setState(() {
-     steps = savedSteps;
-   });
+  Future<void> _initializeSteps() async {
+    final savedSteps = await _database.getSteps();
+    await _initializePreviousDistance();
+    setState(() {
+      steps = savedSteps;
+    });
   }
 
   @override
-  void initState(){
+  void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _initializeSteps();
     _startPeriodicSave();
   }
 
   void getPoints() {
     WidgetsBinding.instance.addPostFrameCallback((timeStamp) {
       showSnackBar(context, "Поздравляем, вы получили 10 очков!");
-      Provider.of<MyDatabase>(context, listen: false).updatePoints();
+      _database.updatePoints();
     });
   }
 
@@ -81,14 +92,32 @@ with WidgetsBindingObserver{
   }
 
   void _startPeriodicSave() {
-    // Сохраняем каждые 30 секунд
     _saveTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      if (steps > 0) {
+        _hasUnsavedSteps = true;
         _saveStepsToDatabase();
+      }
     });
   }
 
   void _saveStepsToDatabase() {
-    Provider.of<MyDatabase>(context, listen: false).updateSteps(steps);
+    if (steps > 0) {
+      _database.updateSteps(steps);
+      _hasUnsavedSteps = false;
+    }
+  }
+
+  void _updateSteps() {
+    if (distance > 7) {
+      setState(() {
+        steps++;
+        _hasUnsavedSteps = true;
+      });
+    }
+    if (steps % 10 == 0 && steps > 10) {
+      getPoints();
+      _saveStepsToDatabase();
+    }
   }
 
   Widget stepsBuilder(
@@ -98,14 +127,9 @@ with WidgetsBindingObserver{
       y = snapshot.data!.y;
       z = snapshot.data!.z;
       distance = getValue(x, y, z);
-
-      if (distance > 7) {
-        steps++;
-      }
-      if (steps % 10 == 0 && steps > 10) {
-        getPoints();
-        Provider.of<MyDatabase>(context, listen: false).updateSteps(steps);
-      }
+      
+      Future.microtask(() => _updateSteps());
+      
       return Text(
         "Вы прошли ${steps} шагов! Так держать",
         style: const TextStyle(fontSize: 20),
@@ -115,10 +139,12 @@ with WidgetsBindingObserver{
   }
 
   @override
-  void dispose(){
+  void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _saveTimer?.cancel();
-    _saveStepsToDatabase();
+    if (_hasUnsavedSteps && steps > 0) {
+      _database.updateSteps(steps);
+    }
     super.dispose();
   }
 
@@ -127,8 +153,10 @@ with WidgetsBindingObserver{
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached ||
         state == AppLifecycleState.inactive) {
-      // Сохраняем при сворачивании приложения
-      _saveStepsToDatabase();
+      if (steps > 0) {
+        _hasUnsavedSteps = true;
+        _saveStepsToDatabase();
+      }
     }
   }
 
@@ -149,21 +177,22 @@ with WidgetsBindingObserver{
           ],
         ),
         body: Center(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Flexible(
-                flex: 1,
-                child: Container(),
-              ),
-              StreamBuilder<AccelerometerEvent>(
-                  stream: SensorsPlatform.instance.accelerometerEvents,
-                  builder: stepsBuilder),
-              Flexible(
-                flex: 1,
-                child: Container(),
-              ),
-            ],
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Center(
+                    child: StreamBuilder<AccelerometerEvent>(
+                      stream: SensorsPlatform.instance.accelerometerEvents,
+                      builder: stepsBuilder,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
