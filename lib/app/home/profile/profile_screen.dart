@@ -28,15 +28,17 @@ class ProfileScreen extends StatelessWidget {
 
   Future<void> _signOut(BuildContext context) async {
     try {
-      await Provider.of<MyDatabase>(context, listen: false).deleteAccount();
       await FirebaseAuth.instance.signOut();
-      Navigator.push
-        (context,
-        MaterialPageRoute(builder: (context) => const LandingPage()
-        )
-      );
+      if (context.mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const LandingPage()),
+        );
+      }
     } catch (e) {
-      showSnackBar(context, "Failed to sign out: $e");
+      if (context.mounted) {
+        showSnackBar(context, "Ошибка при выходе из аккаунта: $e");
+      }
     }
   }
 

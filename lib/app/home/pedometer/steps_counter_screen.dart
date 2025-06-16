@@ -21,8 +21,7 @@ class StepsCounterScreen extends StatefulWidget {
   State<StepsCounterScreen> createState() => _StepsCounterScreenState();
 }
 
-class _StepsCounterScreenState extends State<StepsCounterScreen>
-with WidgetsBindingObserver{
+class _StepsCounterScreenState extends State<StepsCounterScreen> with WidgetsBindingObserver {
   double x = 0.0;
   double y = 0.0;
   double z = 0.0;
@@ -33,6 +32,16 @@ with WidgetsBindingObserver{
   double previousDistacne = 0.0;
   late MyDatabase _database;
   bool _isInitialized = false;
+  int _lastAwardedStep = 0;
+  StreamSubscription<AccelerometerEvent>? _accelerometerSubscription;
+  
+  // Переменные для опредедения шагов и тряски
+  static const double _stepThreshold = 7.0; // Порог для определения шага
+  static const double _shakeThreshold = 15.0; // Порог для определения тряски
+  static const int _minStepInterval = 300; // Минимальный интервал между шагами (мс)
+  DateTime? _lastStepTime;
+  List<double> _recentMagnitudes = []; // Хранит последние значения магнитуды
+  static const int _magnitudeWindowSize = 5; // Размер окна для анализа
 
   @override
   void didChangeDependencies() {
@@ -49,6 +58,13 @@ with WidgetsBindingObserver{
     getPreviousValue();
     double modDistance = magnitude - previousDistacne;
     setPreviousValue(magnitude);
+    
+    // Добавляем значение в окно анализа
+    _recentMagnitudes.add(modDistance);
+    if (_recentMagnitudes.length > _magnitudeWindowSize) {
+      _recentMagnitudes.removeAt(0);
+    }
+    
     return modDistance;
   }
 
@@ -57,6 +73,7 @@ with WidgetsBindingObserver{
     await _initializePreviousDistance();
     setState(() {
       steps = savedSteps;
+      _lastAwardedStep = (steps ~/ 10) * 10;
     });
   }
 
@@ -65,13 +82,70 @@ with WidgetsBindingObserver{
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _startPeriodicSave();
+    _startAccelerometerSubscription();
+  }
+
+  void _startAccelerometerSubscription() {
+    _accelerometerSubscription = SensorsPlatform.instance.accelerometerEvents.listen((event) {
+      x = event.x;
+      y = event.y;
+      z = event.z;
+      distance = getValue(x, y, z);
+      _updateSteps();
+    });
+  }
+
+  bool _isValidStep() {
+    final now = DateTime.now();
+    
+    // Проверяем минимальный интервал между шагами
+    if (_lastStepTime != null) {
+      final timeSinceLastStep = now.difference(_lastStepTime!).inMilliseconds;
+      if (timeSinceLastStep < _minStepInterval) {
+        return false;
+      }
+    }
+
+    // Проверяем на тряску
+    if (_recentMagnitudes.length >= _magnitudeWindowSize) {
+      // Вычисляем среднее значение и максимальное отклонение
+      double sum = 0;
+      double maxDeviation = 0;
+      for (var magnitude in _recentMagnitudes) {
+        sum += magnitude;
+      }
+      double average = sum / _recentMagnitudes.length;
+      
+      for (var magnitude in _recentMagnitudes) {
+        double deviation = (magnitude - average).abs();
+        if (deviation > maxDeviation) {
+          maxDeviation = deviation;
+        }
+      }
+
+      // Если максимальное отклонение слишком большое, считаем это тряской
+      if (maxDeviation > _shakeThreshold) {
+        return false;
+      }
+    }
+
+    // Проверяем, что изменение ускорения находится в разумных пределах
+    if (distance > _stepThreshold && distance < _shakeThreshold) {
+      _lastStepTime = now;
+      return true;
+    }
+
+    return false;
   }
 
   void getPoints() {
-    WidgetsBinding.instance.addPostFrameCallback((timeStamp) {
-      showSnackBar(context, "Поздравляем, вы получили 10 очков!");
-      _database.updatePoints();
-    });
+    if (steps > _lastAwardedStep) {
+      WidgetsBinding.instance.addPostFrameCallback((timeStamp) {
+        showSnackBar(context, "Поздравляем, вы получили 10 очков!");
+        _database.updatePoints();
+        _lastAwardedStep = steps;
+      });
+    }
   }
 
   void setPreviousValue(double distance) async {
@@ -86,9 +160,7 @@ with WidgetsBindingObserver{
 
   void getPreviousValue() async {
     SharedPreferences pref = await SharedPreferences.getInstance();
-    setState(() {
-      previousDistacne = pref.getDouble("preValue") ?? 0.0;
-    });
+    previousDistacne = pref.getDouble("preValue") ?? 0.0;
   }
 
   void _startPeriodicSave() {
@@ -108,40 +180,24 @@ with WidgetsBindingObserver{
   }
 
   void _updateSteps() {
-    if (distance > 7) {
+    if (_isValidStep()) {
       setState(() {
         steps++;
         _hasUnsavedSteps = true;
       });
-    }
-    if (steps % 10 == 0 && steps > 10) {
-      getPoints();
-      _saveStepsToDatabase();
-    }
-  }
-
-  Widget stepsBuilder(
-      BuildContext context, AsyncSnapshot<AccelerometerEvent> snapshot) {
-    if (snapshot.hasData) {
-      x = snapshot.data!.x;
-      y = snapshot.data!.y;
-      z = snapshot.data!.z;
-      distance = getValue(x, y, z);
       
-      Future.microtask(() => _updateSteps());
-      
-      return Text(
-        "Вы прошли ${steps} шагов! Так держать",
-        style: const TextStyle(fontSize: 20),
-      );
+      if (steps % 10 == 0 && steps > _lastAwardedStep) {
+        getPoints();
+        _saveStepsToDatabase();
+      }
     }
-    return const Text("No data");
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _saveTimer?.cancel();
+    _accelerometerSubscription?.cancel();
     if (_hasUnsavedSteps && steps > 0) {
       _database.updateSteps(steps);
     }
@@ -185,9 +241,9 @@ with WidgetsBindingObserver{
               children: [
                 Expanded(
                   child: Center(
-                    child: StreamBuilder<AccelerometerEvent>(
-                      stream: SensorsPlatform.instance.accelerometerEvents,
-                      builder: stepsBuilder,
+                    child: Text(
+                      "Вы прошли ${steps} шагов! Так держать",
+                      style: const TextStyle(fontSize: 20),
                     ),
                   ),
                 ),

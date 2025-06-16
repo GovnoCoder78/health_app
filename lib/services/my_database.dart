@@ -3,12 +3,28 @@ import 'package:flutter/material.dart';
 import 'package:flutter_steps_tracker/app/home/shop/models/shop.dart';
 import 'package:flutter_steps_tracker/models/bought_item.dart';
 import 'package:flutter_steps_tracker/utils/constants.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class MyDatabase with ChangeNotifier {
-  MyDatabase({required this.uid, required this.name});
+  static MyDatabase? _instance;
+  static MyDatabase get instance {
+    if (_instance == null) {
+      throw Exception('MyDatabase не инициализирован. Вызовите MyDatabase.initialize() перед использованием.');
+    }
+    return _instance!;
+  }
+
+  static Future<void> initialize(String uid, String name) async {
+    _instance = MyDatabase._internal(uid: uid, name: name);
+    await _instance!.initDatabase();
+  }
+
+  MyDatabase._internal({required this.uid, required this.name});
+  
   final String name;
   final String uid;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
   int _points = 0;
   final List<BoughtItem> _allBoughtItems = [];
 
@@ -88,5 +104,74 @@ class MyDatabase with ChangeNotifier {
       ]
     });
     notifyListeners();
+  }
+
+  Future<bool> checkEmailExists(String email) async {
+    try {
+      final methods = await _auth.fetchSignInMethodsForEmail(email);
+      return methods.isNotEmpty;
+    } catch (e) {
+      print('Error checking email: $e');
+      return false;
+    }
+  }
+
+  Future<bool> registerUser({
+    required String email,
+    required String password,
+    required String firstName,
+    required String lastName,
+    required String nickname,
+  }) async {
+    try {
+      // Создаем пользователя в Firebase Auth
+      final userCredential = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      if (userCredential.user != null) {
+        // Создаем документ пользователя в Firestore
+        await _firestore.collection('user').doc(userCredential.user!.uid).set({
+          'email': email,
+          'firstName': firstName,
+          'lastName': lastName,
+          'nickname': nickname,
+          'points': 0,
+          'steps': 0,
+          'buyLog': [],
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+
+        // Инициализируем базу данных после успешной регистрации
+        await MyDatabase.initialize(userCredential.user!.uid, nickname);
+        return true;
+      }
+      return false;
+    } catch (e) {
+      print('Error registering user: $e');
+      return false;
+    }
+  }
+
+  Future<bool> signIn(String email, String password) async {
+    try {
+      final userCredential = await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      return userCredential.user != null;
+    } catch (e) {
+      print('Error signing in: $e');
+      return false;
+    }
+  }
+
+  Future<void> signOut() async {
+    try {
+      await _auth.signOut();
+    } catch (e) {
+      print('Error signing out: $e');
+    }
   }
 }

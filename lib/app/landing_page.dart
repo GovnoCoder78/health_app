@@ -27,20 +27,38 @@ class LandingPage extends StatelessWidget {
                 if (snapshot.connectionState != ConnectionState.done) {
                   return const LoadingScreen();
                 }
-                return Provider<UserModel>.value(
-                  value: UserModel(displayName: snapshot.data, uid: user.uid),
-                  child: MultiProvider(
-                    providers: [
-                      ChangeNotifierProvider<MyDatabase>(
-                        create: (_) =>
-                            MyDatabase(uid: user.uid!, name: snapshot.data!),
+                if (snapshot.hasError || !snapshot.hasData) {
+                  return const Scaffold(body: LoadingScreen());
+                }
+                final nickname = snapshot.data as String;
+                if (user.uid == null) {
+                  return const Scaffold(body: LoadingScreen());
+                }
+                return FutureBuilder<void>(
+                  future: MyDatabase.initialize(user.uid!, nickname),
+                  builder: (context, dbSnapshot) {
+                    if (dbSnapshot.connectionState != ConnectionState.done) {
+                      return const LoadingScreen();
+                    }
+                    return Provider<UserModel>.value(
+                      value: UserModel(
+                        displayName: nickname,
+                        uid: user.uid,
+                        email: user.email,
                       ),
-                      ChangeNotifierProvider<PermissionModel>(
-                        create: (_) => PermissionModel(),
+                      child: MultiProvider(
+                        providers: [
+                          ChangeNotifierProvider<MyDatabase>.value(
+                            value: MyDatabase.instance,
+                          ),
+                          ChangeNotifierProvider<PermissionModel>(
+                            create: (_) => PermissionModel(),
+                          ),
+                        ],
+                        child: const PermissionControllerScreen(),
                       ),
-                    ],
-                    child: const PermissionControllerScreen(),
-                  ),
+                    );
+                  },
                 );
               });
         } else {

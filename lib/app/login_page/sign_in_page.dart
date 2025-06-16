@@ -1,11 +1,12 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_steps_tracker/app/home/sign_up/sign_up_page.dart';
+import 'package:flutter_steps_tracker/app/home/sign_up/widgets/password_text_field.dart';
 import 'package:flutter_steps_tracker/app/login_page/sign_in_manager.dart';
 import 'package:flutter_steps_tracker/services/auth.dart';
 import 'package:flutter_steps_tracker/utils/colors.dart';
 import 'package:flutter_steps_tracker/utils/show_snack_bar.dart';
 import 'package:flutter_steps_tracker/widgets/loading_screen.dart';
-import 'package:flutter_steps_tracker/widgets/text_field_input.dart';
 import 'package:provider/provider.dart';
 
 class SignInPage extends StatefulWidget {
@@ -40,21 +41,36 @@ class SignInPage extends StatefulWidget {
 }
 
 class _SignInPageState extends State<SignInPage> {
-  final TextEditingController _nameController = TextEditingController();
-  String get _name => _nameController.text;
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
 
-  Future<void> _signInAnonymously() async {
-    if (_name.length < 5) {
-      showSnackBar(context, "Ваше имя должно быть не короче 5 символов");
-      return;
-    } else if (_name.length > 15) {
-      showSnackBar(context, "Введите имя короче 15 символов");
+  String get _email => _emailController.text;
+  String get _password => _passwordController.text;
+
+  Future<void> _signInWithEmailAndPassword() async {
+    if (!_formKey.currentState!.validate()) {
       return;
     }
+
     try {
-      await widget.manager.signInAnonymously(_name);
+      await widget.manager.signInWithEmailAndPassword(_email, _password);
     } on FirebaseAuthException catch (e) {
-      showSnackBar(context, e.toString());
+      String message;
+      switch (e.code) {
+        case 'user-not-found':
+          message = 'Пользователь с таким email не найден';
+          break;
+        case 'wrong-password':
+          message = 'Неверный пароль';
+          break;
+        case 'invalid-email':
+          message = 'Некорректный email';
+          break;
+        default:
+          message = 'Ошибка входа: ${e.message}';
+      }
+      showSnackBar(context, message);
     }
   }
 
@@ -63,7 +79,7 @@ class _SignInPageState extends State<SignInPage> {
       return const LoadingScreen();
     } else {
       return const Text(
-        'Аутентификация',
+        'Вход',
         textAlign: TextAlign.center,
         style: TextStyle(
           fontSize: 32.0,
@@ -76,6 +92,8 @@ class _SignInPageState extends State<SignInPage> {
   Widget _buildContent(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(16.0),
+      child: Form(
+        key: _formKey,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -85,37 +103,73 @@ class _SignInPageState extends State<SignInPage> {
             child: _buildHeader(),
           ),
           const SizedBox(height: 48.0),
-          TextFieldInput(
-            onEditingComplete:
-                widget.isLoading ? null : () => _signInAnonymously(),
-            hintText: 'Ваше имя',
-            textInputType: TextInputType.text,
-            textEditingController: _nameController,
-            isEnabled: widget.isLoading ? false : true,
+            TextFormField(
+              controller: _emailController,
+              decoration: const InputDecoration(
+                labelText: 'Email',
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.emailAddress,
+              enabled: !widget.isLoading,
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Пожалуйста, введите email';
+                }
+                final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+                if (!emailRegex.hasMatch(value)) {
+                  return 'Пожалуйста, введите корректный email';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16.0),
+            PasswordTextField(
+              controller: _passwordController,
+              labelText: 'Пароль',
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Пожалуйста, введите пароль';
+                }
+                return null;
+              },
           ),
-          const SizedBox(
-            height: 24,
-          ),
-          InkWell(
-            onTap: widget.isLoading ? null : () => _signInAnonymously(),
-            child: Container(
-              width: double.infinity,
-              alignment: Alignment.center,
+            const SizedBox(height: 24.0),
+            ElevatedButton(
+              onPressed: widget.isLoading ? null : _signInWithEmailAndPassword,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: cardBackground,
               padding: const EdgeInsets.symmetric(vertical: 12),
-              decoration: ShapeDecoration(
                 shape: const RoundedRectangleBorder(
                   borderRadius: BorderRadius.all(Radius.circular(4)),
                 ),
-                color: widget.isLoading ? secondaryColor : cardBackground,
               ),
-              child: const Text(
-                'Войти',
-              ),
+              child: const Text('Войти'),
             ),
+            const SizedBox(height: 16.0),
+            TextButton(
+              onPressed: widget.isLoading
+                  ? null
+                  : () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const SignUpPage(),
+              ),
+                      );
+                    },
+              child: const Text('Создать аккаунт'),
           ),
         ],
+        ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
   }
 
   @override
