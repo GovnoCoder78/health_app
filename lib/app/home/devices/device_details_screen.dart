@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'utils/info_snackbar.dart';
 import 'utils/extra.dart';
+import 'utils/notification_history_manager.dart';
+import 'message_history_screen.dart';
 
 class DeviceDetailsScreen extends StatefulWidget {
   const DeviceDetailsScreen({
@@ -26,6 +28,7 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
   bool _isDiscoveringServices = false;
   bool _isConnecting = false;
   bool _isDisconnecting = false;
+  final NotificationHistoryManager _historyManager = NotificationHistoryManager();
 
   late StreamSubscription<BluetoothConnectionState> _connectionStateSubscription;
   late StreamSubscription<bool> _isConnectingSubscription;
@@ -40,6 +43,7 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
       _connectionState = state;
       if (state == BluetoothConnectionState.connected) {
         _services = []; // must rediscover services
+        _historyManager.clearAllHistory();
       }
       if (state == BluetoothConnectionState.connected && _rssi == null) {
         _rssi = await widget.device.readRssi();
@@ -242,8 +246,7 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
           title: Text(widget.device.platformName),
           actions: [buildConnectButton(context), const SizedBox(width: 15)],
         ),
-        body: SingleChildScrollView(
-          child: Column(
+        body: ListView(
             children: <Widget>[
               buildRemoteId(context),
               ListTile(
@@ -252,8 +255,193 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
                 trailing: buildGetServices(context),
               ),
               buildMtuTile(context),
+            if (_services.isNotEmpty) 
+              ..._services.map((service) => ExpansionTile(
+                title: Text('Сервис: ${service.uuid}'),
+                children: service.characteristics.map((c) {
+                  return ExpansionTile(
+                    title: Text('Характеристика: ${c.uuid}'),
+                    children: [
+                      if (c.lastValue != null)
+                        Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Последнее значение (HEX):', style: TextStyle(fontWeight: FontWeight.bold)),
+                              SelectableText(
+                                c.lastValue!.map((e) => e.toRadixString(16).padLeft(2, '0')).join(' '),
+                                style: const TextStyle(fontFamily: 'monospace'),
+                              ),
+                              const SizedBox(height: 8),
+                              const Text('Последнее значение (DEC):', style: TextStyle(fontWeight: FontWeight.bold)),
+                              SelectableText(
+                                c.lastValue!.join(' '),
+                                style: const TextStyle(fontFamily: 'monospace'),
+                              ),
             ],
           ),
+                        ),
+                      Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            if (c.properties.read)
+                              IconButton(
+                                icon: const Icon(Icons.refresh),
+                                tooltip: 'Прочитать значение',
+                                onPressed: () async {
+                                  try {
+                                    final value = await c.read();
+                                    print('Прочитано значение от ${c.uuid}: ${value.map((b) => '0x${b.toRadixString(16).padLeft(2, '0')}').join(', ')}');
+                                    _historyManager.addNotification(c.uuid.toString(), value);
+                                    setState(() {});
+                                  } catch (e) {
+                                    print('Ошибка при чтении значения: $e');
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Ошибка: $e')),
+                                    );
+                                  }
+                                },
+                              ),
+                            if (c.properties.write)
+                              IconButton(
+                                icon: const Icon(Icons.edit),
+                                tooltip: 'Записать значение',
+                                onPressed: () {
+                                  // TODO: Добавить диалог для ввода значения
+                                },
+                              ),
+                            if (c.properties.notify)
+                              IconButton(
+                                icon: const Icon(Icons.history),
+                                tooltip: 'История уведомлений (${_historyManager.getNotificationCount(c.uuid.toString())})',
+                                onPressed: () async {
+                                  try {
+                                    print('Попытка включить уведомления для характеристики: ${c.uuid}');
+                                    print('Текущие свойства характеристики:');
+                                    print('- Read: ${c.properties.read}');
+                                    print('- Write: ${c.properties.write}');
+                                    print('- Notify: ${c.properties.notify}');
+                                    print('- Indicate: ${c.properties.indicate}');
+                                    
+                                    // Проверяем состояние подключения
+                                    final isConnected = await widget.device.isConnected;
+                                    print('Состояние подключения: $isConnected');
+                                    if (!isConnected) {
+                                      print('Устройство отключено, пытаемся подключиться...');
+                                      await widget.device.connect();
+                                      print('Подключение выполнено');
+                                    }
+
+                                    // Находим все характеристики с уведомлениями
+                                    final services = await widget.device.discoverServices();
+                                    BluetoothCharacteristic? ffd2Char;
+                                    BluetoothCharacteristic? ffd3Char;
+
+                                    for (var service in services) {
+                                      for (var characteristic in service.characteristics) {
+                                        if (characteristic.uuid.toString().toLowerCase().contains('ffd2')) {
+                                          ffd2Char = characteristic;
+                                        } else if (characteristic.uuid.toString().toLowerCase().contains('ffd3')) {
+                                          ffd3Char = characteristic;
+                                        }
+                                      }
+                                    }
+
+                                    // Активируем уведомления на ffd2
+                                    if (ffd2Char != null) {
+                                      print('Активируем уведомления на ffd2...');
+                                      await ffd2Char.setNotifyValue(true);
+                                      print('Уведомления на ffd2 включены');
+                                    }
+
+                                    // Активируем уведомления на ffd3
+                                    if (ffd3Char != null) {
+                                      print('Активируем уведомления на ffd3...');
+                                      await ffd3Char.setNotifyValue(true);
+                                      print('Уведомления на ffd3 включены');
+
+                                      // Пробуем специальные команды для активации шагомера
+                                      if (ffd3Char.properties.write) {
+                                        print('Отправляем специальные команды активации...');
+                                        
+                                        // Последовательность команд для активации
+                                        final activationSequence = [
+                                          [0x01, 0x00], // Инициализация
+                                          [0x02, 0x01], // Активация шагомера
+                                          [0x03, 0x01], // Включение уведомлений
+                                          [0x04, 0x01], // Запрос данных
+                                        ];
+
+                                        for (var cmd in activationSequence) {
+                                          print('Отправляем команду: ${cmd.map((b) => '0x${b.toRadixString(16).padLeft(2, '0')}').join(', ')}');
+                                          await ffd3Char.write(cmd);
+                                          print('Команда отправлена, ждем уведомлений...');
+                                          await Future.delayed(const Duration(seconds: 2));
+                                        }
+                                      }
+                                    }
+                                    
+                                    // Добавляем listener с подробным логированием
+                                    c.onValueReceived.listen(
+                                      (value) {
+                                        print('=== ПОЛУЧЕНО УВЕДОМЛЕНИЕ ===');
+                                        print('От характеристики: ${c.uuid}');
+                                        print('Значение (HEX): ${value.map((b) => '0x${b.toRadixString(16).padLeft(2, '0')}').join(', ')}');
+                                        print('Значение (DEC): ${value.join(', ')}');
+                                        print('Длина данных: ${value.length} байт');
+                                        print('========================');
+                                        _historyManager.addNotification(c.uuid.toString(), value);
+                                        setState(() {}); // Обновляем UI
+                                      },
+                                      onError: (error) {
+                                        print('Ошибка при получении уведомления: $error');
+                                      },
+                                    );
+                                    
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => MessageHistoryScreen(
+                                          characteristic: c,
+                                          historyManager: _historyManager,
+                                        ),
+                                      ),
+                                    );
+                                  } catch (e) {
+                                    print('Ошибка при работе с уведомлениями: $e');
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Ошибка: $e')),
+                                    );
+                                  }
+                                },
+                              ),
+                            // Добавляем кнопку истории для всех характеристик
+                            IconButton(
+                              icon: const Icon(Icons.history),
+                              tooltip: 'История значений (${_historyManager.getNotificationCount(c.uuid.toString())})',
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => MessageHistoryScreen(
+                                      characteristic: c,
+                                      historyManager: _historyManager,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                }).toList(),
+              )).toList(),
+          ],
         ),
       ),
     );

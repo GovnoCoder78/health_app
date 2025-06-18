@@ -1,0 +1,2 @@
+/Users/mak/StudioProjects/flutter_steps_tracker/android/app/.cxx/Debug/51655p91/armeabi-v7a/CMakeFiles/edit_cache.dir
+/Users/mak/StudioProjects/flutter_steps_tracker/android/app/.cxx/Debug/51655p91/armeabi-v7a/CMakeFiles/rebuild_cache.dir

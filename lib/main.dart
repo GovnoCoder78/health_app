@@ -13,7 +13,7 @@ void main() async {
     await Firebase.initializeApp();
     print('Firebase initialized successfully');
     
-    // Инициализация Firebase App Check
+
     print('Initializing Firebase App Check...');
     await FirebaseAppCheck.instance.activate(
       webProvider: ReCaptchaV3Provider('recaptcha-v3-site-key'),
@@ -25,7 +25,7 @@ void main() async {
     runApp(const MyApp());
   } catch (e) {
     print('Error during initialization: $e');
-    // Показываем ошибку пользователю
+
     runApp(MaterialApp(
       home: Scaffold(
         body: Center(
@@ -45,7 +45,7 @@ class MyApp extends StatelessWidget {
       create: (context) => Auth(),
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
-        title: 'Шагомер',
+        title: 'Health Helper',
         theme: ThemeData.dark().copyWith(
           scaffoldBackgroundColor: mobileBackgroundColor,
         ),

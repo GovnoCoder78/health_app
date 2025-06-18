@@ -98,7 +98,7 @@ class Auth implements AuthBase {
       if (authResult.user != null) {
         print('Auth: Sign in successful for user ${authResult.user!.uid}');
         
-        // Проверяем существование документа пользователя
+
         final userData = await FirebaseFirestore.instance
             .collection("user")
             .doc(authResult.user!.uid)
@@ -106,7 +106,7 @@ class Auth implements AuthBase {
             
         if (!userData.exists) {
           print('Auth: No user document found for existing user');
-          // Если документ не существует, выходим из системы
+
           await FirebaseAuth.instance.signOut();
           throw FirebaseAuthException(
             code: 'user-not-found',
